@@ -22,16 +22,6 @@ list<Circle*> lowObstacles;
 
 int lastXMouse;
 int keyFlags[256];
-bool above = false;
-int aboveI = -1;
-
-double velTiro, velJogador, velInimigo, velTiroInimigo, freqTiro, alturaObstaculo;
-
-bool inJump = false;
-bool canMove;
-bool canMoveAbove;
-
-int jumpInitTime;
 
 Window *window;
 
@@ -39,6 +29,7 @@ void readParams(char* fileName){
 	XMLDocument file;
 
 	string fileNameS = fileName;
+	double velTiro, velJogador, velInimigo, velTiroInimigo, freqTiro, alturaObstaculo;
 
 	if(fileNameS[fileNameS.size() - 1] != '/'){
 		fileNameS + "/";
@@ -80,7 +71,7 @@ void readParams(char* fileName){
 				velInimigo = it->FloatAttribute("vel");
 				freqTiro = it->FloatAttribute("freqTiro");
 
-			}else if(rootValue.compare("obstaculo")){
+			}else if(rootValue.compare("obstaculo") == 0){
 
 				alturaObstaculo = it->FloatAttribute("altura");
 
@@ -115,7 +106,7 @@ void readParams(char* fileName){
 
 
 				if(cor.compare("red") == 0){
-					Player *e = new Player(x, -y, radius, velInimigo, velTiroInimigo);
+					Player *e = new Player(x, -y, radius, velInimigo, velTiroInimigo, alturaObstaculo, freqTiro);
 					c->setColor(1, 0, 0);
 					enemies.push_back(e);
 				}else if(cor.compare("black") == 0){
@@ -129,7 +120,7 @@ void readParams(char* fileName){
 					c->setColor(1, 1, 1);
 					arena[1] = c;
 				}else if(cor.compare("green") == 0){
-					player = new Player(x, -y, radius, velJogador, velTiro, freqTiro);
+					player = new Player(x, -y, radius, velJogador, velTiro, alturaObstaculo);
 				}
 			}
 		}
@@ -142,8 +133,8 @@ void initWindow(void)
 	{
 		keyFlags[i] = 0;
 	}
-	canMove = true;
-	canMoveAbove = true;
+	// canMove = true;
+	// canMoveAbove = true;
 	 // select background color 
 	glClearColor (1, 1, 1, 0.0);
 	 // inicializar sistema de viz. 
@@ -198,15 +189,22 @@ void display(void)
 	//Draw arena
 	drawCircle(arena[0]);
 	drawCircle(arena[1]);
-	
+
 	//Draw obstacles
-	for (list<Player*>::iterator iter = enemies.begin(); iter != enemies.end(); ++iter)
-	{
-		(*iter)->Desenha();
-	}
 	for (list<Circle*>::iterator iter = lowObstacles.begin(); iter != lowObstacles.end(); ++iter)
 	{
 		drawCircle((*iter));
+	}
+	
+	//Draw enemies
+	for (list<Player*>::iterator iter = enemies.begin(); iter != enemies.end(); ++iter)
+	{
+		(*iter)->Desenha();
+		list <Tiro*> tirosE = (*iter)->ObtemTiros();
+		for (list<Tiro*>::iterator i = tirosE.begin(); i != tirosE.end(); ++i)
+		{
+			(*i)->Desenha();
+		}
 	}
 
 	//Draw shots
@@ -226,22 +224,6 @@ double dist(Circle *c1, Circle *c2){
 	double distance = sqrt(pow(c1->getCenterX() - c2->getCenterX(), 2) + pow(c1->getCenterY() - c2->getCenterY(), 2));
 }
 
-void checkCollision(Circle *c1, Circle *c2, bool intern = false){
-	double distance = dist(c1, c2);
-
-	bool freeMove = intern ? distance < c1->getRadius() - c2->getRadius() : distance > c1->getRadius() + c2->getRadius();
-	
-	if(!freeMove){
-		canMove = canMove && (intern ? c2->getCenterX() > c1->getCenterX() : c2->getCenterX() < c1->getCenterX());
-		canMove = canMove && (intern ? c2->getCenterY() > c1->getCenterY() : c2->getCenterY() < c1->getCenterY());
-		canMove = canMove && (intern ? c2->getCenterX() < c1->getCenterX() : c2->getCenterX() > c1->getCenterX());
-		canMove = canMove && (intern ? c2->getCenterY() < c1->getCenterY() : c2->getCenterY() > c1->getCenterY());
-
-	}else{
-		canMove = canMove || intern;
-	}
-}
-
 bool collisionTiro(Circle *c, Tiro* t, bool intern = false){
 	double distance = sqrt(pow(c->getCenterX() - t->ObtemX(), 2) + pow(c->getCenterY() - t->ObtemY(), 2));
 	return !(intern ? distance < c->getRadius() - t->ObtemRaio() : distance > c->getRadius() + t->ObtemRaio());
@@ -252,42 +234,9 @@ bool collisionTiro(Player *p, Tiro *t){
 	return !(distance > p->ObtemRaio() + t->ObtemRaio());
 }
 
-void checkCollisionJumpable(Circle *c1, Circle *c2, int i){
-	double distance = dist(c1, c2);
-
-	if(player->EstaAcima() && aboveI != i){
-		return;
-	}
-
-	if(!player->EstaPulando() && !player->EstaAcima()){
-		checkCollision(c1, c2);
-	}else{
-		if(distance < c1->getRadius() + c2->getRadius()){
-			player->DeterminaAcima(true);
-			aboveI = i;
-			if(player->EstaPulando()){
-				canMoveAbove = canMoveAbove || ( c2->getCenterX() > c1->getCenterX());
-				canMoveAbove = canMoveAbove || ( c2->getCenterY() > c1->getCenterY());
-				canMoveAbove = canMoveAbove || ( c2->getCenterX() < c1->getCenterX());
-				canMoveAbove = canMoveAbove || ( c2->getCenterY() < c1->getCenterY());
-			} else {
-				canMoveAbove = canMoveAbove || ( c2->getCenterX() > c1->getCenterX());
-				canMoveAbove = canMoveAbove || ( c2->getCenterY() > c1->getCenterY());
-				canMoveAbove = canMoveAbove || ( c2->getCenterX() < c1->getCenterX());
-				canMoveAbove = canMoveAbove || ( c2->getCenterY() < c1->getCenterY());
-			}
-
-		} else {
-			player->DeterminaAcima(false);
-			aboveI = -1;
-		}
-	}
-
-}
-
 void idle(void){
 
-	float velocidade = 0;
+	int velocidade = 0;
 
 	if(keyFlags[(int)('w')])
     {
@@ -297,7 +246,6 @@ void idle(void){
     {
         velocidade = -1;
     }
-
 	if(keyFlags[(int)('a')])
     {
         player->RodaPlayer(1);
@@ -311,30 +259,61 @@ void idle(void){
          player->Pula();
     }
 
-	Circle *aux = new Circle(player->ObtemRaio(), player->tryToMoveX(velocidade), player->tryToMoveY(velocidade), 0);
-
 	list<Tiro*> tiros = player->ObtemTiros();
 
 	list<Tiro*> remove;
 
 	list<Player*> morre;
 
-	for (list<Tiro*>::iterator iter = tiros.begin(); iter != tiros.end(); ++iter)
+	for (list<Tiro*>::iterator iterT = tiros.begin(); iterT != tiros.end(); ++iterT)
 	{
-		if(collisionTiro(arena[0], (*iter), true) || collisionTiro(arena[1], (*iter))){
-			remove.push_back((*iter));
+		if(collisionTiro(arena[0], *iterT, true) || collisionTiro(arena[1], *iterT)){
+			remove.push_back(*iterT);
 		}
 	}
 
-	checkCollision(arena[0], aux, true);
-	checkCollision(arena[1], aux);
+	player->checkCollision(arena[0], velocidade, true);
+	player->checkCollision(arena[1], velocidade);
 	for (list<Player*>::iterator iter = enemies.begin(); iter != enemies.end(); ++iter)
 	{
 		for (list<Tiro*>::iterator iterT = tiros.begin(); iterT != tiros.end(); ++iterT){
-			if(collisionTiro((*iter), (*iterT))){
-				remove.push_back((*iterT));
-				morre.push_back((*iter));
+			if(collisionTiro(*iter, *iterT)){
+				remove.push_back(*iterT);
+				morre.push_back(*iter);
 			}
+		}
+		list<Tiro*> removeE;
+		list<Tiro*> tirosE = (*iter)->ObtemTiros();
+		for (list<Tiro*>::iterator iterT = tirosE.begin(); iterT != tirosE.end(); ++iterT){
+			if(collisionTiro(arena[0], *iterT, true) || collisionTiro(arena[1], *iterT)){
+				removeE.push_back((*iterT));
+			}
+			if(collisionTiro(player, *iterT)){
+				removeE.push_back(*iterT);
+			}
+		}
+		for (list<Circle*>::iterator iterO = lowObstacles.begin(); iterO != lowObstacles.end(); ++iterO)
+		{
+			for (list<Tiro*>::iterator iterT = tirosE.begin(); iterT != tirosE.end(); ++iterT){
+				if(collisionTiro(*iterO, *iterT)){
+					removeE.push_back(*iterT);
+				}
+			}
+		}
+		for (std::list<Player*>::iterator iterE = enemies.begin(); iterE != enemies.end(); ++iterE)
+		{
+			if(iter != iterE){
+				(*iterE)->checkCollision(*iter, 1);
+				(*iter)->checkCollision(*iterE, 1);
+			}
+		}
+		(*iter)->checkCollision(arena[0], 1, true);
+		(*iter)->checkCollision(arena[1], 1);
+		(*iter)->checkCollision(player, 1);
+		player->checkCollision((*iter), velocidade);
+		for (list<Tiro*>::iterator i = removeE.begin(); i != removeE.end(); ++i)
+		{
+			(*iter)->RemoveTiro((*i));
 		}
 	}
 	 int i = 0;
@@ -345,7 +324,11 @@ void idle(void){
 				remove.push_back((*iterT));
 			}
 		}
-		checkCollisionJumpable((*iter), aux, i);
+		for (list<Player*>::iterator iterE = enemies.begin(); iterE != enemies.end(); ++iterE){
+			(*iterE)->checkCollisionJumpable((*iter), 1, i);
+		}
+
+		player->checkCollisionJumpable((*iter), velocidade, i);
 	}
 
 	for (list<Tiro*>::iterator i = remove.begin(); i != remove.end(); ++i)
@@ -356,8 +339,11 @@ void idle(void){
 	{
 		enemies.remove((*i));
 	}
+	for (list<Player*>::iterator iterE = enemies.begin(); iterE != enemies.end(); ++iterE){
+		(*iterE)->anima();
+	}
 
-    player->Move(velocidade, canMove && canMoveAbove);
+    player->Move(velocidade);
 	
 	glutPostRedisplay();
 }

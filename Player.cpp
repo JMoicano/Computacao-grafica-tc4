@@ -55,17 +55,33 @@ void Player::DesenhaCirc(GLint radius, GLfloat R, GLfloat G, GLfloat B)
 
 void Player::DesenhaPlayer(GLfloat x, GLfloat y, GLfloat radius, GLfloat thetaLeg, GLfloat thetaGun, GLfloat thetaPlayer)
 {
-    double R = freqTiro == 0 ? 1 : 0;
-    double G = freqTiro == 0 ? 0 : 1;
+    double R = freqTiro == 0 ? 0 : 1;
+    double G = freqTiro == 0 ? 1 : 0;
+    double min = above ? 1 + obstacleHigh * .5 : 1;
     if(inJump){
-        double jumpTime = (glutGet(GLUT_ELAPSED_TIME) - jumpInitTime)/1000.0;
+        jumpTime = (glutGet(GLUT_ELAPSED_TIME) - jumpInitTime)/1000.0;
         if(jumpTime < 2){
-            inJumpScale = 1 + (.5 * (jumpTime*(2 - jumpTime)));
+            inJumpScale = initJumpScale + (.5 * (jumpTime*(totalJumpTime - jumpTime)));
         }else{
-            inJumpScale = 1;
+            // inJumpScale = 1;
+            jumpTime = 0;
             inJump = false;
+            falling = true;
+            jumpInitTime = glutGet(GLUT_ELAPSED_TIME);
         }
     }
+    if(!inJump && falling){
+        jumpTime = (glutGet(GLUT_ELAPSED_TIME) - jumpInitTime)/1000.0;
+        if(jumpTime < (totalJumpTime/2) * obstacleHigh){
+            inJumpScale = 1 + (jumpTime - obstacleHigh) * -.5;
+        }else{
+            falling = false;
+        }
+    }
+    if(inJumpScale < min){
+        inJumpScale = min;
+    }
+    // inJumpScale = 1;
     glPushMatrix();
 
         glTranslatef(x, y, 0);
@@ -129,7 +145,7 @@ void Player::RodaPlayer(int signal)
 
 void Player::RodaArma(GLfloat inc)
 {
-    if(gThetaGun+inc <= 45 && gThetaGun+inc >= - 45){
+    if(gThetaGun+inc <= 45 && gThetaGun + inc >= - 45){
         gThetaGun += inc;
     }
 }
@@ -146,7 +162,7 @@ GLfloat Player::tryToMoveY(int signal)
     return gY + yDelta * elapsedTime;
 }
 
-void Player::Move(int signal, bool canMove)
+void Player::Move(int signal)
 {
     if(!canMove){
         return;
@@ -163,6 +179,7 @@ void Player::Pula()
 {
     if(!inJump){
         jumpInitTime = glutGet(GLUT_ELAPSED_TIME);
+        initJumpScale = above ? 1 + obstacleHigh * .5 : 1;
         inJump = true;
     }
 
@@ -172,6 +189,84 @@ void Player::Atira(){
     if(!above && !inJump){
         tiros.push_back(new Tiro(gX, gY, gThetaPlayer, gThetaGun, .8 * radius, .8 * gunWidth * radius, velocidadeTiro, inJumpScale, gunHeight * radius));
     }
+}
+
+double Player::dist(Player *c1, int signal){
+    double distance = sqrt(pow(c1->ObtemX() - this->tryToMoveX(signal), 2) + pow(c1->ObtemY() - this->tryToMoveY(signal), 2));
+}
+
+double Player::dist(Circle *c1, int signal){
+    double distance = sqrt(pow(c1->getCenterX() - this->tryToMoveX(signal), 2) + pow(c1->getCenterY() - this->tryToMoveY(signal), 2));
+}
+
+void Player::checkCollision(Circle *c1, int signal, bool intern){
+    double distance = dist(c1, signal);
+
+    bool freeMove = intern ? distance < c1->getRadius() - radius : distance > c1->getRadius() + radius;
+    
+    if(!freeMove){
+        canMove = canMove && freeMove;
+    }else{
+        canMove = canMove || intern;
+    }
+}
+
+void Player::checkCollision(Player *c1, int signal){
+    double distance = dist(c1, signal);
+
+    if(distance < c1->ObtemRaio() + radius){
+        canMove = false;
+    }
+    
+}
+
+void Player::checkCollisionJumpable(Circle *c1, int signal, int i){
+    double distance = dist(c1, signal);
+
+    if(above && aboveI != i){
+        return;
+    }
+
+    if(above || (jumpTime > obstacleHigh * totalJumpTime/2 && jumpTime < totalJumpTime * (1 - obstacleHigh/2))){
+        if(distance < c1->getRadius() + radius){
+            above = true;
+            cantMoveAbove = false;
+            aboveI = i;
+        } else {
+            if(above && !inJump){
+                jumpInitTime = glutGet(GLUT_ELAPSED_TIME);
+            }
+            above = false;
+            falling = true;
+            aboveI = -1;
+        }
+    }else{
+        bool antes = canMove;
+        checkCollision(c1, signal);
+        cantMoveAbove = cantMoveAbove || antes && !canMove;
+    }
+
+}
+
+void Player::anima(){
+    GLfloat atual = glutGet(GLUT_ELAPSED_TIME);
+    if(lastShot == 0 || (atual - lastShot)/1000.0 > 1/freqTiro){
+        this->Atira();
+        lastShot = atual;
+    }
+    if(cantMoveAbove){
+        this->Pula();
+    }
+    if(!canMove && !inJump){
+        gThetaPlayer += 60 + rand() % 30;
+    }
+    this->Move(1);
+    animacaoArma *= gThetaGun == 45 || gThetaGun == -45 ? -1 : 1;
+    this->RodaArma(animacaoArma);
+}
+
+void Player::Para(){
+    canMove = false;
 }
 
 GLfloat Player::ObtemX(){
@@ -192,16 +287,4 @@ list<Tiro*> Player::ObtemTiros(){
 
 void Player::RemoveTiro(Tiro* t){
     tiros.remove(t);
-}
-
-bool Player::EstaPulando(){
-    return inJump;
-}
-
-void Player::DeterminaAcima(bool acima){
-    above = acima;
-}
-
-bool Player::EstaAcima(){
-    return above;
 }

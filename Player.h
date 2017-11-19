@@ -89,7 +89,6 @@ public:
     void Move(int);
     void Pula();
     void Atira();
-    void Para();
     GLfloat ObtemX();
     GLfloat ObtemY();
     GLfloat tryToMoveX(int);

@@ -80,6 +80,8 @@ void Player::DesenhaPlayer(GLfloat x, GLfloat y, GLfloat radius, GLfloat thetaLe
     }
     if(inJumpScale < min){
         inJumpScale = min;
+        inJump = false;
+        falling = false;
     }
     // inJumpScale = 1;
     glPushMatrix();
@@ -177,7 +179,7 @@ void Player::Move(int signal)
 
 void Player::Pula()
 {
-    if(!inJump){
+    if(!inJump && !falling){
         jumpInitTime = glutGet(GLUT_ELAPSED_TIME);
         initJumpScale = above ? 1 + obstacleHigh * .5 : 1;
         inJump = true;
@@ -213,10 +215,7 @@ void Player::checkCollision(Circle *c1, int signal, bool intern){
 
 void Player::checkCollision(Player *c1, int signal){
     double distance = dist(c1, signal);
-
-    if(distance < c1->ObtemRaio() + radius){
-        canMove = false;
-    }
+    if(distance < c1->ObtemRaio() + radius){canMove = false;}
     
 }
 
@@ -263,10 +262,6 @@ void Player::anima(){
     this->Move(1);
     animacaoArma *= gThetaGun == 45 || gThetaGun == -45 ? -1 : 1;
     this->RodaArma(animacaoArma);
-}
-
-void Player::Para(){
-    canMove = false;
 }
 
 GLfloat Player::ObtemX(){

@@ -22,6 +22,15 @@ list<Circle*> lowObstacles;
 
 int lastXMouse;
 int keyFlags[256];
+int score;
+static char str[2000];
+char *vict = "YOU WIN! : )";
+char *loos = "YOU LOST! : (";
+void * font = GLUT_BITMAP_9_BY_15;
+
+bool vitoria;
+bool derrota;
+bool fimDejogo;
 
 Window *window;
 
@@ -133,6 +142,10 @@ void initWindow(void)
 	{
 		keyFlags[i] = 0;
 	}
+	score = 0;
+	vitoria = false;
+	derrota = false;
+	fimDejogo = false;
 	// canMove = true;
 	// canMoveAbove = true;
 	 // select background color 
@@ -179,6 +192,42 @@ void drawCircle(Circle *circle){
 
 }
 
+void PrintScore(GLfloat x, GLfloat y)
+{
+    //Create a string to be printed
+    char *tmpStr;
+    sprintf(str, "%d enemies killed!", score );
+    //Define the position to start printing
+    glRasterPos2f(x, y);
+    //Print  the first Char with a certain font
+    //glutBitmapLength(font,(unsigned char*)str);
+    tmpStr = str;
+    //Print each of the other Char at time
+    while( *tmpStr ){
+        glutBitmapCharacter(font, *tmpStr);
+        tmpStr++;
+    }
+
+}
+
+void PrintMessage(char * msg, GLfloat x, GLfloat y)
+{
+    //Create a string to be printed
+    char *tmpStr;
+    // sprintf(msg, "%d enemies killed!", score );
+    //Define the position to start printing
+    glRasterPos2f(x, y);
+    //Print  the first Char with a certain font
+    //glutBitmapLength(font,(unsigned char*)str);
+    tmpStr = msg;
+    //Print each of the other Char at time
+    while( *tmpStr ){
+        glutBitmapCharacter(font, *tmpStr);
+        tmpStr++;
+    }
+
+}
+
 void display(void)
 {
 	 // Clear pixels 
@@ -216,6 +265,18 @@ void display(void)
 	//Draw player
 	player->Desenha();
 
+	//Write score
+	PrintScore(arena[0]->getCenterX() + arena[0]->getRadius() * .45, arena[0]->getCenterY() + arena[0]->getRadius() * .95);
+
+	if(vitoria && !fimDejogo){
+		fimDejogo = true;
+		PrintMessage(vict, arena[0]->getCenterX() - arena[0]->getRadius() * .05, arena[0]->getCenterY() - arena[0]->getRadius() * .05);
+	}
+	if(derrota && !fimDejogo){
+		fimDejogo = true;
+		PrintMessage(loos, arena[0]->getCenterX() - arena[0]->getRadius() * .05, arena[0]->getCenterY() - arena[0]->getRadius() * .05);
+	}
+
 	/* Dont Wait! */
 	glutSwapBuffers();
 }
@@ -235,6 +296,14 @@ bool collisionTiro(Player *p, Tiro *t){
 }
 
 void idle(void){
+
+	if(enemies.empty()){
+		vitoria = true;
+	}
+
+	if(fimDejogo){
+		return;
+	}
 
 	int velocidade = 0;
 
@@ -280,6 +349,7 @@ void idle(void){
 			if(collisionTiro(*iter, *iterT)){
 				remove.push_back(*iterT);
 				morre.push_back(*iter);
+				score++;
 			}
 		}
 		list<Tiro*> removeE;
@@ -289,6 +359,7 @@ void idle(void){
 				removeE.push_back((*iterT));
 			}
 			if(collisionTiro(player, *iterT)){
+				derrota = true;
 				removeE.push_back(*iterT);
 			}
 		}
@@ -300,6 +371,10 @@ void idle(void){
 				}
 			}
 		}
+		(*iter)->checkCollision(arena[0], 1, true);
+		(*iter)->checkCollision(arena[1], 1);
+		(*iter)->checkCollision(player, 1);
+		player->checkCollision((*iter), velocidade);
 		for (std::list<Player*>::iterator iterE = enemies.begin(); iterE != enemies.end(); ++iterE)
 		{
 			if(iter != iterE){
@@ -307,10 +382,6 @@ void idle(void){
 				(*iter)->checkCollision(*iterE, 1);
 			}
 		}
-		(*iter)->checkCollision(arena[0], 1, true);
-		(*iter)->checkCollision(arena[1], 1);
-		(*iter)->checkCollision(player, 1);
-		player->checkCollision((*iter), velocidade);
 		for (list<Tiro*>::iterator i = removeE.begin(); i != removeE.end(); ++i)
 		{
 			(*iter)->RemoveTiro((*i));
